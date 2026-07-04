@@ -27,7 +27,7 @@ def get_dc_voltage_from_filename(filename):
         raise ValueError("DC voltage not found in filename.")
     
 def get_temperature_from_filename(filename):
-    match = re.search(r'sample(\d+)K', filename)
+    match = re.search(r'sampleT(\d+)K', filename)
     if match:
         return int(match.group(1))
     else:

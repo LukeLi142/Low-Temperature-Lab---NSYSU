@@ -42,41 +42,6 @@ def plot_fft(ax, results, f_min, f_max):
     ax.grid(True)
 
 # =========================
-# Plot best fitting results
-# =========================
-
-def plot_fitting_results(ax, results, f_min, f_max):
-    ax.clear()
-
-    for r in results:
-        freqs = r["shifted_freqs"] if r["shifted_freqs"] is not None else r["freqs"]
-        amplitude = r["amplitude"]
-        AC_voltage = r["AC voltage"]
-        fit_result = r["Fit results"]
-
-        mask = (freqs >= f_min) & (freqs <= f_max)
-        ax.plot(
-            freqs[mask],
-            amplitude[mask],
-            label=f"{AC_voltage} V - Data",
-            linestyle="dashed"
-        )
-
-        if fit_result is not None:
-            ax.plot(
-                fit_result["x_fit"],   # 或改成 x_fit
-                fit_result["y_fit"],
-                linewidth=2,
-                label=f"{AC_voltage} V - {fit_result['model']} fit"
-            )
-
-    ax.set_xlabel("Frequency (Hz)")
-    ax.set_ylabel("Amplitude")
-    ax.set_title("Fitting Results")
-    ax.legend()
-    ax.grid(True)
-
-# =========================
 # Plot ME results
 # =========================
 
@@ -109,7 +74,6 @@ def plot_mt_results(ax, results):
     ax.set_xlabel("Temperature (K)")
     ax.set_ylabel("Induced Magnetization (a.u.)")
     ax.set_title("Induced Magnetization vs Temperature")
-    ax.legend()
     ax.grid(True)
 
 

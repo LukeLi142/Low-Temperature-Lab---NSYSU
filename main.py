@@ -6,7 +6,7 @@ import sys
 import glob
 import pandas as pd
 import os
-from Gui import (MainWindow, TemperatureRangeDialog)
+from Gui import MainWindow
 from PyQt6.QtWidgets import (QMainWindow, QToolBar, QApplication, QFileDialog,
                              QPushButton, QMessageBox, QVBoxLayout, QWidget,
                              QHBoxLayout, QLineEdit, QLabel)
@@ -24,7 +24,6 @@ class Controller:
         self.gui.FFT.triggered.connect(self.FFT)
         self.gui.load_folder.triggered.connect(self.load_folder)
         self.gui.save_as.triggered.connect(self.save_as)
-        self.gui.Fit.triggered.connect(self.fit_peaks)
         self.gui.Sum_sqrt.triggered.connect(self.sum_and_sqrt_amplitude)
         self.gui.MECurve.triggered.connect(self.ME_curve)
         self.gui.MTCurve.triggered.connect(self.MT_curve)
@@ -90,79 +89,12 @@ class Controller:
                                  "duration": duration,
                                  
                                  "shifted_freqs": None,
-                                 "Fit results": None})    # 儲存以計算過資料和分析結果的列表
+                                 "Analysis results": None})    # 儲存以計算過資料和分析結果的列表
         
         # plot results
         
         plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
-        self.gui.canvas.draw()  # Refresh the canvas to show the new plot
-    
-    # =========================
-    # Fitting
-    # =========================
-    
-    def fit_peaks(self):
-        
-       # Fit peaks for all loaded files and get the FWHM.
-        
-        # Set stasus
-        self.current_mode = "Fit"
-
-        # Check FFT results
-        if not hasattr(self, 'results') or len(self.results) == 0:
-            QMessageBox.warning(self.gui, "No FFT results", "Please perform FFT analysis before fitting peaks.")
-            return
-        
-        # Get frequency range from input fields
-        try:
-            f_min_fit = float(self.gui.f_min_input.text())
-            f_max_fit = float(self.gui.f_max_input.text())
-        except ValueError:
-            QMessageBox.warning(self.gui, "Invalid input", "Please enter valid numbers for f_min and f_max.")
-            return
-        # Validate frequency range
-        if f_min_fit >= f_max_fit:
-            QMessageBox.warning(self.gui, "Invalid input", "f_min should be less than f_max.")
-            return
-        # Set temperature limits for fitting
-        dialog = TemperatureRangeDialog(self.gui)
-        if not dialog.exec():
-            return
-        T_min, T_max = dialog.get_temperature_range()
-        
-        for r in self.results:
-            DC_voltage = float(r.get("DC voltage", None))            
-            Temperature = float(r.get("Temperature", None))
-            # 如果DC電壓接近0，則不進行擬合，直接將擬合結果設置為None或NaN
-            if np.isclose(DC_voltage, 0):
-                r["Fit results"] = {
-                    "model": None,
-                    "fit success": False,
-                    "fwhm": None,
-                    "fwhm error": None,
-                    "fit induced M": None,
-                    "fit induced M error": None,
-                    "x_fit": None,
-                    "y_fit": None,
-                    "chi2": None
-                }
-                continue
-            
-            analysis = Analysis(r["data"], r["duration"])
-            freqs = r["freqs"]
-            amplitude = r["amplitude"]    
-            
-            if Temperature < T_min or Temperature > T_max:
-                fit_result = analysis.linear_bg_and_sum_sqrt(freqs, amplitude, f_min_fit, f_max_fit)
-            else:
-                fit_result = analysis.fit_peak(freqs, amplitude, f_min_fit, f_max_fit)
-
-            r["Fit results"] = fit_result
-
-        # Plot fitting results
-        if not np.isclose(DC_voltage, 0):
-            plot.plot_fitting_results(self.gui.ax, self.results, f_min_fit, f_max_fit)
-        self.gui.canvas.draw()  # Refresh the canvas to show the new plot
+        self.gui.canvas.draw()  # Refresh the canvas to show the new plot    
         
     # =========================
     # Sum and square root of amplitude
@@ -264,26 +196,6 @@ class Controller:
             df[f'{AC_voltage}V'] = amplitude
         df.to_csv(file_path, index=False)
     
-    # Save fitting results
-    def save_fit_results(self, f_min_save, f_max_save, file_path):
-        """
-        Save fitting results to a CSV file with the specified frequency range.
-        """
-        results = sorted(self.results, key=lambda r: r["DC voltage"])
-
-        rows = []
-        for r in results:
-            rows.append({
-                "DC voltage": r["DC voltage"],
-                "AC voltage": r["AC voltage"],
-                "fit induced M": r["Fit results"]["fit induced M"],
-                "fit induced M error": r["Fit results"]["fit induced M error"],
-                "fwhm": r["Fit results"]["fwhm"],
-                "fwhm error": r["Fit results"]["fwhm error"]
-            })
-        df = pd.DataFrame(rows)
-        df.to_csv(file_path, index=False)
-
     # Save ME curve results
     def save_me_results(self, file_path):
         """
@@ -345,9 +257,6 @@ class Controller:
         if self.current_mode == "FFT":
             self.save_fft_results(f_min_save, f_max_save, file_path)
             QMessageBox.information(self.gui, "Save Successful", f"FFT results saved to {file_path}")
-        elif self.current_mode == "Fit":
-            self.save_fit_results(f_min_save, f_max_save, file_path)
-            QMessageBox.information(self.gui, "Save Successful", f"Fitting results saved to {file_path}")
         elif self.current_mode == "ME Curve":
             self.save_me_results(file_path)
             QMessageBox.information(self.gui, "Save Successful", f"ME curve results saved to {file_path}")
