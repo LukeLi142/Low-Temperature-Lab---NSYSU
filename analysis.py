@@ -20,15 +20,8 @@ class Analysis:
         signal = self.data - np.mean(self.data)
         self.fft_vals = np.fft.rfft(signal) # rfft 取正頻率
         self.freqs = np.fft.rfftfreq(self.N, d=self.dt) # frequency bins
-        self.real = np.real(self.fft_vals)
-        self.imag = np.imag(self.fft_vals)
-        self.magnitude = np.sqrt(self.real**2 + self.imag**2)
         self.amplitude = np.abs(self.fft_vals) / self.N
         self.amplitude[1:-1] *= 2 # Amplitude Normalization (retangle window)
-        self.phase = np.degrees(np.arctan2(self.imag, self.real))
-        self.phase = np.degrees(np.unwrap(np.angle(self.fft_vals)))
-        self.power = (self.amplitude ** 2)/2
-        self.power_db = 10 * np.log10(self.power + 1e-20) #避免log(0)
         return self.freqs, self.amplitude
 
 
