@@ -1,4 +1,4 @@
-import load_data 
+from load_data import DataLoader 
 import numpy as np
 from analysis import Analysis
 import plot_utils as plot
@@ -15,7 +15,7 @@ class Controller:
     def __init__(self,gui):
         self.gui = gui
         self.files = []     
-
+        self.results = []   # 儲存資料和分析結果的列表
     # Set status
         self.current_mode = None
 
@@ -68,33 +68,58 @@ class Controller:
             QMessageBox.warning(self.gui, "Invalid input", "f_min should be less than f_max.")
             return
         
-        self.results = []   # 儲存資料和分析結果的列表
-
+        # Create an instance of the Analysis class and results
+        analysis = Analysis()
+        all_freqs = []  # 用於存儲所有文件的頻率軸
+        all_amplitudes = []  # 用於存儲所有文件的振幅數據
+        self.results = [] # 儲存結果
         for file in self.files:
-            data, duration = load_data.load_data(file) 
-            DC_voltage = load_data.get_dc_voltage_from_filename(file)
-            Temperature = load_data.get_temperature_from_filename(file)
-            AC_voltage = DC_voltage / np.sqrt(2)  # 計算交流電壓
-            analysis = Analysis(data, duration)
-            freqs, amplitude = analysis.FFT()
-                
-            self.results.append({"file":file,
-                                 "Temperature":Temperature,
-                                 "DC voltage":DC_voltage,
-                                 "AC voltage":AC_voltage,
-                                 "freqs":freqs,
-                                 "amplitude":amplitude,
+            dataloder = DataLoader(file) 
+            datasets = dataloder.Read_ME_File() # 讀取txt檔中的數據和分割多組測量資料
+            AC_Vp = dataloder.get_AC_Vp_voltage_from_filename() # 從檔名中取得交流電壓
+            Temperature = dataloder.get_temperature_from_filename() # 從檔名中取得溫度
+            AC_Vrms = AC_Vp / np.sqrt(2)  # 計算有效交流電壓
+            
+            # FFT 每組分割完的數據
+            for dataset in datasets:
+                analysis.set_data(dataset['data'], dataset['dt'])
+                current_freqs, current_amplitude = analysis.FFT() #FFT完原始數據，接下來要統一頻率軸
+                all_freqs.append(current_freqs.copy())
+                all_amplitudes.append(current_amplitude.copy()) 
 
-                                 "data": data,
-                                 "duration": duration,
-                                 
-                                 "shifted_freqs": None,
-                                 "Analysis results": None})    # 儲存以計算過資料和分析結果的列表
-        
-        # plot results
-        
+            # 判斷組數
+            if len(datasets) == 1:
+                freq = all_freqs[0]
+                amplitude = all_amplitudes[0]
+                #存結果
+                self.results.append({
+                    "Temperature": Temperature,
+                    "AC_Vp": AC_Vp,
+                    "AC_Vrms": AC_Vrms,
+                    "frequency": freq,
+                    "amplitude": amplitude,
+                 })
+                
+            else:
+                # 統一頻率軸
+                common_freqs, interpolated_amplitude = analysis.uniform_frequency_axis(all_freqs, all_amplitudes)
+                freq = common_freqs
+                mean_amplitude = np.mean(interpolated_amplitude, axis = 0)
+                #存結果
+                self.results.append({
+                    "Temperature": Temperature,
+                    "AC_Vp": AC_Vp,
+                    "AC_Vrms": AC_Vrms,
+                    "frequency": freq,
+                    "amplitude": amplitude,
+                    "mean amplitude": mean_amplitude 
+                })
+        # 畫FFT圖
         plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
-        self.gui.canvas.draw()  # Refresh the canvas to show the new plot    
+        self.gui.canvas.draw_idle()
+            
+
+            
         
     # =========================
     # Sum and square root of amplitude

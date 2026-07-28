@@ -25,11 +25,9 @@ def plot_fft(ax, results, f_min, f_max):
     ax.clear()  # Clear the axes before plotting
 
     for r in results:
-        freqs = r["freqs"]
+        freqs = r["frequency"]
         amplitude = r["amplitude"]
-        voltage = r["AC voltage"]
-        
-        freqs = r["shifted_freqs"] if r["shifted_freqs"] is not None else r["freqs"]
+        voltage = r["AC_Vrms"]
         mask = (freqs >= f_min) & (freqs <= f_max)
 
         ax.plot(freqs[mask],

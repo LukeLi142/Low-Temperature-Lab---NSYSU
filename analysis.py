@@ -4,17 +4,20 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 
 class Analysis:
-    def __init__(self, data, duration):
-       self.data = data
-       self.duration = duration
-       self.dt = duration / 240000 # second
-       self.f = 1/self.dt # Hz
-       self.N = len(self.data) # 數據長度
-       
-       self.freqs = None
-       self.amplitude = None
-       self.fft_vals = None
-       self.shifted_freqs = None
+    def __init__(self):
+        self.data = None
+        self.dt = None
+
+    # 設定資料
+    def set_data(self, data, dt):
+        self.data = data
+        self.dt = dt
+        self.f = 1/self.dt # Hz
+        self.N = len(self.data) # 數據長度
+        self.freqs = None
+        self.amplitude = None
+        self.fft_vals = None
+
     # FFT分析
     def FFT(self):
         signal = self.data - np.mean(self.data)
@@ -56,3 +59,30 @@ class Analysis:
         sqrt_sum_amplitude = np.sqrt(sum_amplitude) * 1000  # Convert back to mV
         return sqrt_sum_amplitude
 
+
+    # ==========================
+    # Uniform frequency axis interpolation
+    # ==========================
+
+    def uniform_frequency_axis(self, all_freqs, all_amplitudes):
+         """
+         當有多組資料時，將它們的頻率軸統一，並對振幅進行插值
+         ，以利我們進行振幅的平均。
+         """
+         # Find the common frequency range
+         f_min = max([freqs[0] for freqs in all_freqs])
+         f_max = min([freqs[-1] for freqs in all_freqs])
+         if f_min >= f_max:
+             raise ValueError("No overlapping frequency range found among datasets.")
+         
+         # First frequnecy data be used as the common frequency axis
+         base_freqs = all_freqs[0]
+         mask = (base_freqs >= f_min) & (base_freqs <= f_max)
+         common_freqs = base_freqs[mask]
+         interpolated_amplitudes = []
+         
+         for freqs, amplitude in zip(all_freqs, all_amplitudes): # zip() 函數將兩個列表打包成一個元組列表，這樣我們可以同時遍歷頻率和振幅
+                # Interpolate amplitude to the common frequency axis
+                interp_amplitude = np.interp(common_freqs, freqs, amplitude)
+                interpolated_amplitudes.append(interp_amplitude)
+                return common_freqs, interpolated_amplitudes
