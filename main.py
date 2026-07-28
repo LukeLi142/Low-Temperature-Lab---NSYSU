@@ -70,8 +70,7 @@ class Controller:
         
         # Create an instance of the Analysis class and results
         analysis = Analysis()
-        all_freqs = []  # 用於存儲所有文件的頻率軸
-        all_amplitudes = []  # 用於存儲所有文件的振幅數據
+        
         self.results = [] # 儲存結果
         for file in self.files:
             dataloder = DataLoader(file) 
@@ -79,7 +78,8 @@ class Controller:
             AC_Vp = dataloder.get_AC_Vp_voltage_from_filename() # 從檔名中取得交流電壓
             Temperature = dataloder.get_temperature_from_filename() # 從檔名中取得溫度
             AC_Vrms = AC_Vp / np.sqrt(2)  # 計算有效交流電壓
-            
+            all_freqs = []  # 用於存儲所有文件的頻率軸
+            all_amplitudes = []  # 用於存儲所有文件的振幅數據
             # FFT 每組分割完的數據
             for dataset in datasets:
                 analysis.set_data(dataset['data'], dataset['dt'])
@@ -87,20 +87,18 @@ class Controller:
                 all_freqs.append(current_freqs.copy())
                 all_amplitudes.append(current_amplitude.copy()) 
 
-            # 判斷組數
-            if len(datasets) == 1:
-                freq = all_freqs[0]
-                amplitude = all_amplitudes[0]
-                #存結果
+                #存平均前結果
                 self.results.append({
                     "Temperature": Temperature,
                     "AC_Vp": AC_Vp,
                     "AC_Vrms": AC_Vrms,
-                    "frequency": freq,
-                    "amplitude": amplitude,
+                    "frequency": current_freqs.copy(),
+                    "amplitude": current_amplitude.copy(),
+                    "type": "individual"
                  })
                 
-            else:
+            if len(datasets) > 1:
+
                 # 統一頻率軸
                 common_freqs, interpolated_amplitude = analysis.uniform_frequency_axis(all_freqs, all_amplitudes)
                 freq = common_freqs
@@ -111,12 +109,12 @@ class Controller:
                     "AC_Vp": AC_Vp,
                     "AC_Vrms": AC_Vrms,
                     "frequency": freq,
-                    "amplitude": amplitude,
-                    "mean amplitude": mean_amplitude 
+                    "mean amplitude": mean_amplitude,
+                    "type": "average"
                 })
-        # 畫FFT圖
-        plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
-        self.gui.canvas.draw_idle()
+            # 畫FFT圖
+            plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
+            self.gui.canvas.draw()
             
 
             
@@ -148,8 +146,8 @@ class Controller:
             QMessageBox.warning(self.gui, "Invalid input", "f_min should be less than f_max.")
             return
         for r in self.results:
-            analysis = Analysis(r["data"], r["duration"])
-            freqs = r["freqs"]
+            analysis = Analysis()
+            freqs = r["frequency"]
             amplitude = r["amplitude"]
             sum_sqrt_result = analysis.sum_and_sqrt_amplitude(freqs, amplitude, f_min_sum, f_max_sum)
             r["calculated induced M"] = sum_sqrt_result
@@ -197,18 +195,14 @@ class Controller:
         if self.current_mode =="FFT":
             plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
             self.gui.canvas.draw()  # Refresh the canvas to show the updated plot
-
-    # Shift frequency
-    def shift_peaks(self, target_freqs):
-        target_freqs = float(self.gui.target_freq_input.text())
-        
+  
     # Save Results
     def save_fft_results(self, f_min_save, f_max_save, file_path):
         """
         Save FFT results to a CSV file with the specified frequency range.
         """
-        results = sorted(self.results, key=lambda r: r["DC voltage"])
-        freqs = self.results[0]['freqs']  # 假設所有文件的頻率範圍相同
+        results = sorted(self.results, key=lambda r: r["AC_Vp"])
+        freqs = self.results[0]['frequency']  # 假設所有文件的頻率範圍相同
         mask = (freqs >= f_min_save) & (freqs <= f_max_save)
         
         df = pd.DataFrame()
@@ -217,8 +211,8 @@ class Controller:
         # 將每個文件的振幅添加到DataFrame中
         for r in results:
             amplitude = r['amplitude'][mask]
-            AC_voltage = r['AC voltage']
-            df[f'{AC_voltage}V'] = amplitude
+            AC_Vrms = r['AC_Vrms']
+            df[f'{AC_Vrms}V'] = amplitude
         df.to_csv(file_path, index=False)
     
     # Save ME curve results
@@ -226,13 +220,13 @@ class Controller:
         """
         Save ME curve results to a CSV file.
         """
-        results = sorted(self.results, key=lambda r: r["DC voltage"])
+        results = sorted(self.results, key=lambda r: r["AC_Vp"])
         rows = []
 
         for r in results:
             rows.append({
-                "DC voltage": r["DC voltage"],
-                "AC voltage": r["AC voltage"],
+                "AC_Vp": r["AC_Vp"],
+                "AC_Vrms": r["AC_Vrms"],
                 "calculated induced M": r["calculated induced M"]
             })
         df = pd.DataFrame(rows)
@@ -243,13 +237,13 @@ class Controller:
         """
         Save MT curve results to a CSV file.
         """
-        results = sorted(self.results, key=lambda r: r["DC voltage"])
+        results = sorted(self.results, key=lambda r: r["Ac_Vp"])
         rows = []
 
         for r in results:
             rows.append({
-                "DC voltage": r["DC voltage"],
-                "AC voltage": r["AC voltage"],
+                "AC_Vp": r["AC_Vp"],
+                "AC_Vrms": r["AC_Vrms"],
                 "Temperature": r["Temperature"],
                 "calculated induced M": r["calculated induced M"],
                 

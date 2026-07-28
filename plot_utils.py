@@ -47,11 +47,11 @@ def plot_me_results(ax, results):
     ax.clear()
    
     for r in results:
-        AC_voltage = r["AC voltage"]
+        AC_Vrms = r["AC_Vrms"]
         induced_m = r["calculated induced M"]
-        ax.scatter(AC_voltage, induced_m, label=f"{AC_voltage:.0f} V", s=100)
+        ax.scatter(AC_Vrms, induced_m, label=f"{AC_Vrms:.0f} V", s=100)
         
-    ax.set_xlabel("AC Voltage (V)")
+    ax.set_xlabel("AC_rms(V)")
     ax.set_ylabel("Induced Magnetization (a.u.)")
     ax.set_title("Induced Magnetization vs AC Voltage")
     ax.legend()
