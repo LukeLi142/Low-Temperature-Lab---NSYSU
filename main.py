@@ -237,7 +237,7 @@ class Controller:
         """
         Save MT curve results to a CSV file.
         """
-        results = sorted(self.results, key=lambda r: r["Ac_Vp"])
+        results = sorted(self.results, key=lambda r: r["AC_Vp"])
         rows = []
 
         for r in results:
