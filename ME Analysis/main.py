@@ -27,9 +27,11 @@ class Controller:
         self.gui.Sum_sqrt.triggered.connect(self.sum_and_sqrt_amplitude)
         self.gui.MECurve.triggered.connect(self.ME_curve)
         self.gui.MTCurve.triggered.connect(self.MT_curve)
+        self.gui.Position.triggered.connect(self.position_curve)
     # Connect input fields to update frequency range
         self.gui.f_min_input.returnPressed.connect(self.update_range)
         self.gui.f_max_input.returnPressed.connect(self.update_range)
+        self.gui.showallgraph_checkbox.toggled.connect(self.update_range)
 
     # Load files
     def load_file(self):
@@ -77,6 +79,10 @@ class Controller:
             datasets = dataloder.Read_ME_File() # 讀取txt檔中的數據和分割多組測量資料
             AC_Vp = dataloder.get_AC_Vp_voltage_from_filename() # 從檔名中取得交流電壓
             Temperature = dataloder.get_temperature_from_filename() # 從檔名中取得溫度
+            try:
+                position = dataloder.get_position_from_filename()
+            except ValueError:
+                position = None
             AC_Vrms = AC_Vp / np.sqrt(2)  # 計算有效交流電壓
             all_freqs = []  # 用於存儲所有文件的頻率軸
             all_amplitudes = []  # 用於存儲所有文件的振幅數據
@@ -89,6 +95,10 @@ class Controller:
 
                 #存平均前結果
                 self.results.append({
+                    "file": os.path.basename(file),
+                    "scan_number": dataset['scan_number'],
+                    "scan_count": len(datasets),
+                    "Position": position,
                     "Temperature": Temperature,
                     "AC_Vp": AC_Vp,
                     "AC_Vrms": AC_Vrms,
@@ -97,24 +107,36 @@ class Controller:
                     "type": "individual"
                  })
                 
-            if len(datasets) > 1:
-
-                # 統一頻率軸
-                common_freqs, interpolated_amplitude = analysis.uniform_frequency_axis(all_freqs, all_amplitudes)
-                freq = common_freqs
-                mean_amplitude = np.mean(interpolated_amplitude, axis = 0)
+            if len(all_freqs) > 1:
+                # 統一頻率軸後，平均每組 FFT 的振幅
+                freq, interpolated_amplitude = analysis.uniform_frequency_axis(all_freqs, all_amplitudes)
+                mean_amplitude = np.mean(interpolated_amplitude, axis=0)
                 #存結果
                 self.results.append({
+                    "file": os.path.basename(file),
+                    "Position": position,
                     "Temperature": Temperature,
                     "AC_Vp": AC_Vp,
                     "AC_Vrms": AC_Vrms,
                     "frequency": freq,
-                    "mean amplitude": mean_amplitude,
+                    "amplitude": mean_amplitude,
                     "type": "average"
                 })
-            # 畫FFT圖
-            plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
-            self.gui.canvas.draw()
+        # 所有檔案計算完成後，依照勾選狀態畫圖
+        self.draw_fft(f_min, f_max)
+
+    def draw_fft(self, f_min, f_max):
+        show_all = self.gui.showallgraph_checkbox.isChecked()
+        visible_results = [r for r in self.results
+                           if show_all or r.get("type") == "average"
+                           or r.get("scan_count") == 1]
+        result_groups = [[r] for r in visible_results if r.get("type") != "average"]
+        averages = [r for r in visible_results if r.get("type") == "average"]
+        if averages:
+            result_groups.append(averages)
+        axes = self.gui.create_plot_axes(len(result_groups))
+        plot.plot_fft(axes, result_groups, f_min, f_max)
+        self.gui.canvas.draw()
             
 
             
@@ -164,6 +186,7 @@ class Controller:
             QMessageBox.warning(self.gui, "No calculated induced M results", "Please perform sum and square root of amplitude calculation before plotting ME curve.")
             return
         
+        self.gui.create_plot_axes()
         plot.plot_me_results(self.gui.ax, self.results)
         self.gui.canvas.draw()  # Refresh the canvas to show the new plot
 
@@ -176,12 +199,45 @@ class Controller:
         self.current_mode = "MT Curve"
         
 
+        self.gui.create_plot_axes()
         plot.plot_mt_results(self.gui.ax, self.results)
         self.gui.canvas.draw()  # Refresh the canvas to show the new plot
 
+    # =========================
+    # Position Curve
+    # =========================
+
+    def get_position_results(self):
+        show_all = self.gui.showallgraph_checkbox.isChecked()
+        return [r for r in self.results
+                if show_all or r.get("type") == "average"
+                or r.get("scan_count") == 1]
+
+    def position_curve(self):
+        results = self.get_position_results()
+        if not results or any("calculated induced M" not in r for r in results):
+            QMessageBox.warning(self.gui, "No amplitude results",
+                                "Please perform FFT and Sum & Sqrt before plotting Position.")
+            return
+        missing_positions = sorted({r["file"] for r in results
+                                    if r.get("Position") is None})
+        if missing_positions:
+            QMessageBox.warning(self.gui, "Missing position",
+                                "Position must follow P_ in the filename (e.g. P_0p0).\n"
+                                + "\n".join(missing_positions))
+            return
+
+        self.gui.create_plot_axes()
+        plot.plot_position_results(self.gui.ax, results)
+        self.gui.canvas.draw()
+        self.current_mode = "Position"
+
     # 改輸出範圍
     def update_range(self):
-        if not hasattr(self, 'results') or len(self.results) == 0:
+        if self.current_mode == "Position":
+            self.position_curve()
+            return
+        if self.current_mode != "FFT" or not self.results:
             return  # No results to update
         try:
             f_min = float(self.gui.f_min_input.text())
@@ -192,9 +248,7 @@ class Controller:
         if f_min >= f_max:
             QMessageBox.warning(self.gui, "Invalid input", "f_min should be less than f_max.")
             return
-        if self.current_mode =="FFT":
-            plot.plot_fft(self.gui.ax, self.results, f_min, f_max)
-            self.gui.canvas.draw()  # Refresh the canvas to show the updated plot
+        self.draw_fft(f_min, f_max)
   
     # Save Results
     def save_fft_results(self, f_min_save, f_max_save, file_path):
@@ -253,6 +307,17 @@ class Controller:
 
 
 
+    def save_position_results(self, file_path):
+        results = sorted(self.get_position_results(), key=lambda r: r["Position"])
+        rows = [{
+            "file": r["file"],
+            "Position": r["Position"],
+            "Amplitude": r["calculated induced M"],
+            "type": r["type"],
+            "scan_number": r.get("scan_number"),
+        } for r in results]
+        pd.DataFrame(rows).to_csv(file_path, index=False)
+
     def save_as(self):
         if not self.current_mode:
             QMessageBox.warning(self.gui, "No analysis to save", "Please perform an analysis before saving results.")
@@ -271,6 +336,8 @@ class Controller:
         
         # Save file dialog
         file_path, _ = QFileDialog.getSaveFileName(self.gui, "Save Results", "", "CSV Files (*.csv)")
+        if not file_path:
+            return
         
         # Save results based on current mode
         if self.current_mode == "FFT":
@@ -282,6 +349,9 @@ class Controller:
         elif self.current_mode == "MT Curve":
             self.save_mt_results(file_path)
             QMessageBox.information(self.gui, "Save Successful", f"MT curve results saved to {file_path}")
+        elif self.current_mode == "Position":
+            self.save_position_results(file_path)
+            QMessageBox.information(self.gui, "Save Successful", f"Position results saved to {file_path}")
 
 
     

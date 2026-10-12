@@ -93,6 +93,16 @@ class DataLoader:
         else:
             raise ValueError("Temperature not found in filename.")
 
+    # get position from filename
+    def get_position_from_filename(self):
+        """Read position after P_, treating P/p as the decimal separator."""
+        filename = os.path.basename(self.inputfile)
+        match = re.search(r'P_([+-]?\d+(?:[p.]\d+)?)', filename, re.IGNORECASE)
+        if match:
+            return float(match.group(1).lower().replace('p', '.'))
+        else:
+            raise ValueError("Position not found in filename.")
+
     # 輔助函數
     def append_dataset(self, scan_number, data, downsampling_ratio, real_sampling_interval, dt):
         dataset = {

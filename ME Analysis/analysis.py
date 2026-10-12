@@ -85,4 +85,4 @@ class Analysis:
                 # Interpolate amplitude to the common frequency axis
                 interp_amplitude = np.interp(common_freqs, freqs, amplitude)
                 interpolated_amplitudes.append(interp_amplitude)
-                return common_freqs, interpolated_amplitudes
+         return common_freqs, interpolated_amplitudes
