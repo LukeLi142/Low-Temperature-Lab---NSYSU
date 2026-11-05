@@ -87,15 +87,15 @@ class DataLoader:
     
     # get temperature from filename  
     def get_temperature_from_filename(self):
-        match = re.search(r'sampleE(\d+)K', self.inputfile)
+        match = re.search(r'sampleT(\d+)K', self.inputfile)
         if match:
             return int(match.group(1))
         else:
             raise ValueError("Temperature not found in filename.")
-
+ 
     # get position from filename
     def get_position_from_filename(self):
-        """Read position after P_, treating P/p as the decimal separator."""
+        
         filename = os.path.basename(self.inputfile)
         match = re.search(r'P_([+-]?\d+(?:[p.]\d+)?)', filename, re.IGNORECASE)
         if match:
